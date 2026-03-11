@@ -1,40 +1,30 @@
-# A1 Collision Repair — Shop Management App
+# A1 Collision Repair
 
 ## Current State
-New project. No existing code.
+- Work Orders page has a modal for viewing/editing work orders
+- Modal has status controls, financials, parts management, and customer signature capture
+- No delete option exists anywhere in the UI
+- Customer approval section shows name, date, and signature image but has no export option
+- Backend already has `deleteWorkOrder(id)` and data for approval is stored
 
 ## Requested Changes (Diff)
 
 ### Add
-- Single shared password login (no individual accounts)
-- Sidebar navigation with 4 pages
-- Dashboard page with stat cards, charts, profit summary, recent work orders
-- Work Orders page with search, filter chips, table, and detail modal with signature capture
-- Parts Tracker page with Kanban board, parts table, and PDF export
-- Monthly Reports page with month/year selector, profit breakdown, charts by job type and technician
-- Full backend data models for WorkOrders, Parts, CustomerApprovals
+- Delete work order button in the WorkOrderModal actions row, with a confirmation dialog (AlertDialog) before executing
+- After deletion, close the modal and refresh work orders list
+- Export Approval PDF button in the Customer Approval section, visible only when a signature exists
+- PDF export generates a printable document with: shop name (A1 Collision Repair), work order ID, customer name, vehicle, date in, approval printed name, approval date, and the signature image
 
 ### Modify
-N/A
+- WorkOrderModal: add delete button and export approval PDF button
+- WorkOrders page: handle modal close + refresh after delete
 
 ### Remove
-N/A
+- Nothing removed
 
 ## Implementation Plan
-
-### Backend (Motoko)
-- Password auth: store a shared hashed password, verify on login, return session token
-- WorkOrder CRUD: create, read, update, delete; fields: id, customerName, phone, vehicle, vin, color, jobType (Collision/Paint/Rust/Glass/Mechanical), status (Estimate/InProgress/Ready/Delivered/OnHold), chargeToCustomer, laborCost, technicianName, dateIn, dateDelivered, notes, approvalInfo
-- Parts CRUD: create, read, update by workOrderId; fields: id, workOrderId, partName, partNumber, supplier, cost, quantity, status (NeedToOrder/Ordered/Arrived), orderedDate, arrivedDate, notes
-- CustomerApproval: store printed name, signature data URL, date signed; linked to workOrder
-- Computed fields: partsCost = sum of parts costs for a workOrder; netProfit = chargeToCustomer - partsCost - laborCost
-- Query endpoints: getRecentWorkOrders(limit), getWorkOrdersByStatus, getWorkOrdersByMonth(month, year), getDashboardStats, getPartsByWorkOrder, getAllActiveParts
-
-### Frontend
-- Login gate: full-screen password form, store session in localStorage
-- Sidebar: A1 Collision Repair branding, nav links to 4 pages
-- Page 1 Dashboard: 4 stat cards (Active Jobs, In Progress, Ready to Deliver, Parts to Order), bar chart jobs by type, bar chart parts pipeline, monthly profit summary card, recent 5 work orders table
-- Page 2 Work Orders: search bar, status filter chips, full table, row-click detail modal with status controls, financials section, parts list with advance buttons, signature capture canvas, edit/approve buttons
-- Page 3 Parts Tracker: job filter, PDF export button, Kanban 3-column board, full parts table below
-- Page 4 Monthly Reports: month/year dropdown, monthly summary, delivered jobs list, 12-month year summary, job type breakdown, technician breakdown, best month highlight
-- Sample data seeded for demo purposes
+1. In WorkOrderModal, add a red "Delete" button in the actions row that opens an AlertDialog confirmation
+2. On confirm, call `actor.deleteWorkOrder(workOrderId)`, invalidate queries, and call `onClose()`
+3. In the Customer Approval section, add an "Export Approval PDF" button (only shown when approval exists)
+4. PDF generation uses browser print/window.print with a hidden print-only div styled for a clean approval document, or jsPDF/canvas approach -- use browser print approach with a styled div to avoid extra dependencies
+5. The print div includes shop name, WO ID, customer info, vehicle, approval name, date, and signature image

@@ -1,3 +1,14 @@
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,7 +21,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronRight, PenLine, Plus } from "lucide-react";
+import {
+  ChevronRight,
+  FileDown,
+  Loader2,
+  PenLine,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { useState } from "react";
 import type { PartInput, WorkOrder, WorkOrderInput } from "../backend";
 import { useActor } from "../hooks/useActor";
@@ -66,6 +84,17 @@ export default function WorkOrderModal({
       queryClient.invalidateQueries({ queryKey: ["workOrders"] });
       queryClient.invalidateQueries({ queryKey: ["recentWorkOrders"] });
       queryClient.invalidateQueries({ queryKey: ["dashboardStats"] });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => actor!.deleteWorkOrder(workOrderId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["workOrders"] });
+      queryClient.invalidateQueries({ queryKey: ["recentWorkOrders"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboardStats"] });
+      queryClient.invalidateQueries({ queryKey: ["allParts"] });
+      onClose();
     },
   });
 
@@ -138,6 +167,139 @@ export default function WorkOrderModal({
   function handleEditSave(input: WorkOrderInput) {
     updateMutation.mutate(input);
     setEditing(false);
+  }
+
+  function handleExportApprovalPDF() {
+    if (!wo) return;
+
+    const printDiv = document.createElement("div");
+    printDiv.id = "approval-print-div";
+
+    const styleEl = document.createElement("style");
+    styleEl.textContent = `
+      @media print {
+        body > *:not(#approval-print-div) { display: none !important; }
+        #approval-print-div { display: block !important; }
+      }
+      #approval-print-div {
+        display: none;
+        font-family: Georgia, serif;
+        max-width: 700px;
+        margin: 40px auto;
+        padding: 40px;
+        color: #111;
+      }
+      #approval-print-div .shop-header {
+        text-align: center;
+        border-bottom: 2px solid #222;
+        padding-bottom: 16px;
+        margin-bottom: 24px;
+      }
+      #approval-print-div .shop-name {
+        font-size: 28px;
+        font-weight: bold;
+        letter-spacing: 1px;
+        margin: 0 0 4px 0;
+      }
+      #approval-print-div .form-title {
+        font-size: 16px;
+        color: #555;
+        margin: 0;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+      }
+      #approval-print-div .info-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px 24px;
+        margin-bottom: 24px;
+      }
+      #approval-print-div .info-item label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: #777;
+        display: block;
+        margin-bottom: 2px;
+      }
+      #approval-print-div .info-item span {
+        font-size: 14px;
+        font-weight: 600;
+      }
+      #approval-print-div .section-title {
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        color: #444;
+        border-bottom: 1px solid #ddd;
+        padding-bottom: 8px;
+        margin: 24px 0 16px;
+      }
+      #approval-print-div .sig-name {
+        font-size: 15px;
+        margin-bottom: 8px;
+      }
+      #approval-print-div .sig-date {
+        font-size: 13px;
+        color: #555;
+        margin-bottom: 16px;
+      }
+      #approval-print-div .sig-img {
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        max-height: 120px;
+        max-width: 400px;
+        display: block;
+      }
+      #approval-print-div .footer {
+        margin-top: 40px;
+        text-align: center;
+        font-size: 12px;
+        color: #999;
+        border-top: 1px solid #ddd;
+        padding-top: 16px;
+      }
+    `;
+    document.head.appendChild(styleEl);
+
+    printDiv.innerHTML = `
+      <div class="shop-header">
+        <div class="shop-name">A1 Collision Repair</div>
+        <div class="form-title">Customer Approval Form</div>
+      </div>
+      <div class="info-grid">
+        <div class="info-item">
+          <label>Work Order #</label>
+          <span>${wo.id}</span>
+        </div>
+        <div class="info-item">
+          <label>Customer Name</label>
+          <span>${wo.customerName}</span>
+        </div>
+        <div class="info-item">
+          <label>Phone</label>
+          <span>${wo.phone || "—"}</span>
+        </div>
+        <div class="info-item">
+          <label>Vehicle</label>
+          <span>${wo.vehicle}</span>
+        </div>
+        <div class="info-item">
+          <label>Date In</label>
+          <span>${wo.dateIn}</span>
+        </div>
+      </div>
+      <div class="section-title">Customer Authorization</div>
+      <div class="sig-name"><strong>Printed Name:</strong> ${wo.approvalPrintedName}</div>
+      <div class="sig-date"><strong>Date Signed:</strong> ${wo.approvalDate || "—"}</div>
+      ${wo.approvalSignatureData ? `<img class="sig-img" src="${wo.approvalSignatureData}" alt="Customer Signature" />` : "<em>No signature captured.</em>"}
+      <div class="footer">Fort Walton Beach, FL</div>
+    `;
+
+    document.body.appendChild(printDiv);
+    window.print();
+    document.body.removeChild(printDiv);
+    document.head.removeChild(styleEl);
   }
 
   const charge =
@@ -435,13 +597,24 @@ export default function WorkOrderModal({
                       className="border rounded max-h-24"
                     />
                   )}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setShowSignature(true)}
-                  >
-                    <PenLine className="w-3 h-3 mr-1" /> Re-sign
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setShowSignature(true)}
+                    >
+                      <PenLine className="w-3 h-3 mr-1" /> Re-sign
+                    </Button>
+                    <Button
+                      data-ocid="workorder_modal.export_approval.button"
+                      size="sm"
+                      variant="outline"
+                      className="text-blue-700 border-blue-300 hover:bg-blue-50"
+                      onClick={handleExportApprovalPDF}
+                    >
+                      <FileDown className="w-3 h-3 mr-1" /> Export Approval PDF
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 <div>
@@ -472,6 +645,44 @@ export default function WorkOrderModal({
               <Button variant="outline" onClick={() => setEditing(true)}>
                 Edit Work Order
               </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    data-ocid="workorder_modal.delete_button"
+                    variant="outline"
+                    className="text-red-600 border-red-300 hover:bg-red-50 hover:text-red-700"
+                    disabled={deleteMutation.isPending}
+                  >
+                    {deleteMutation.isPending ? (
+                      <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4 mr-1" />
+                    )}
+                    Delete
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent data-ocid="workorder_modal.delete_confirm.dialog">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete Work Order?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure you want to delete this work order? This
+                      cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel data-ocid="workorder_modal.delete_confirm.cancel_button">
+                      Cancel
+                    </AlertDialogCancel>
+                    <AlertDialogAction
+                      data-ocid="workorder_modal.delete_confirm.confirm_button"
+                      className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+                      onClick={() => deleteMutation.mutate()}
+                    >
+                      Delete Work Order
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
               <div className="flex-1" />
               <Button
                 data-ocid="workorder_modal.close_button"
